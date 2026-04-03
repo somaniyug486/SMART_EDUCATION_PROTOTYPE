@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Live Classroom</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f0f2f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Layout --- */
+        .wb-container {
+            position: relative;
+            height: calc(100vh - 80px) !important;
+        }
+
+        #wb_canvas {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: crosshair;
+        }
+
+        .chat-panel {
+            height: calc(100vh - 80px);
+        }
+
+        .chat-box {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .msg-bubble {
+            background: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 15px;
+            margin-bottom: 8px;
+            display: inline-block;
+            max-width: 80%;
+            font-size: 0.9rem;
+        }
+
+        .msg-mine {
+            background: #0d6efd;
+            color: white;
+            float: right;
+            border-bottom-right-radius: 2px;
+        }
+
+        .msg-other {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            float: left;
+            border-bottom-left-radius: 2px;
+        }
+
+        .sender-name {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-bottom: 2px;
+            display: block;
+        }
+
+        /* --- Floating Video Wrapper (User Preference) --- */
+        .video-wrapper {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            align-items: center;
+            z-index: 99999;
+            cursor: move;
+            /* Drag cursor for the whole wrapper */
+            user-select: none;
+        }
+
+        .video-container {
+            width: 360px;
+            height: 220px;
+            background: #d61d1d;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 3px solid #fff;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: black;
+        }
+
+        .video-placeholder {
+            position: absolute;
+            text-align: center;
+            color: #fff;
+        }
+
+        .video-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-left: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            border-radius: 14px;
+        }
+
+        .video-controls .btn {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        /* --- Resource Panel --- */
+        #teacherResourcePanel {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 
+        TOP NAVIGATION BAR
+        - Shows the title and the 'Exit' button.
+    -->
+    <nav id="classroomNavbar" class="navbar navbar-dark bg-dark px-3" style="height: 60px;">
+        <span class="navbar-brand mb-0 h1"><i class="fas fa-chalkboard me-2"></i><span data-i18n="classroom">Smart
+                Classroom</span></span>
+        <div class="d-flex align-items-center">
+            <span id="uName" class="text-white me-3"></span>
+            <button onclick="handleExit()" class="btn btn-sm btn-danger"><i class="fas fa-times me-1"></i>
+                Exit</button>
+        </div>
+    </nav>
+
+    <!-- Teacher Resource Panel (Draggable) -->
+    <div id="teacherResourcePanel" class="card shadow-lg"
+        style="display:none; position: fixed; top: 70px; right: 20px; width: 600px; height: 85vh; z-index: 100000;">
+        <div id="panelHeader" class="card-header bg-warning d-flex justify-content-between align-items-center"
+            style="cursor: move;">
+            <h6 class="mb-0 text-dark"><i class="fas fa-book me-2"></i>Teacher Resources</h6>
+            <button class="btn btn-sm btn-close" onclick="toggleResourcePanel()"></button>
+        </div>
+        <div class="card-body d-flex flex-column p-2 bg-light">
+            <!-- Upload -->
+            <div class="mb-3 border-bottom pb-2">
+                <h6 class="small fw-bold">Upload New Resource</h6>
+                <div class="mb-2">
+                    <input type="number" id="resModule" class="form-control form-control-sm mb-1"
+                        placeholder="Module No." min="1">
+                    <input type="text" id="resTitle" class="form-control form-control-sm mb-1" placeholder="Title">
+                    <input type="text" id="resDesc" class="form-control form-control-sm mb-1" placeholder="Description">
+                    <div class="input-group input-group-sm">
+                        <input type="file" id="resourceFile" class="form-control" accept=".pdf,.png,.jpg,.jpeg,.zip">
+                        <button class="btn btn-primary" onclick="uploadResource()"><i class="fas fa-upload"></i>
+                            Upload</button>
+                    </div>
+                </div>
+            </div>
+            <!-- List -->
+            <div id="resourceList" class="flex-grow-1" style="overflow-y: auto;">
+                <div class="text-center text-muted small mt-4">Loading resources...</div>
+            </div>
+            <!-- Viewer -->
+            <div id="resourceViewer" class="mt-2 border-top pt-2 d-none"
+                style="height: 450px; overflow: hidden; position: relative;">
+                <button onclick="closeViewer()" class="btn btn-sm btn-secondary position-absolute top-0 end-0 m-1"
+                    style="z-index:10">&times;</button>
+                <div id="viewerContent" class="w-100 h-100 bg-white d-flex justify-content-center align-items-center">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-3">
+        <div class="row">
+            <!-- 
+                WHITEBOARD (CANVAS)
+                - This is where the teacher draws.
+                - We use an HTML5 <canvas> element, which is like a digital paper.
+            -->
+            <div class="col-md-9 wb-container">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                        <h6 class="mb-0"><i class="fas fa-pen-fancy me-2"></i>Whiteboard</h6>
+                        <button id="clearBtn" class="btn btn-outline-danger btn-sm" onclick="clearBoard()"><i
+                                class="fas fa-eraser"></i> Clear</button>
+                    </div>
+                    <div class="card-body p-0 bg-white d-flex justify-content-center align-items-center"
+                        style="overflow: auto;">
+                        <canvas id="wb_canvas" width="1200" height="800"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- 
+                CLASS CHAT
+                - Real-time messages for everyone in the room.
+            -->
+            <div class="col-md-3 chat-panel">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-comments me-2"></i>Class Chat
+                    </div>
+                    <div class="card-body d-flex flex-column p-2 bg-light">
+                        <div id="chatBox" class="chat-box shadow-inset">
+                            <div class="text-center text-muted mt-5"><small>Connecting...</small></div>
+                        </div>
+                        <div class="input-group">
+                            <input type="text" id="chatInput" class="form-control" placeholder="Type a message..."
+                                onkeypress="if(event.key==='Enter') sendChat()">
+                            <button class="btn btn-primary" onclick="sendChat()"><i
+                                    class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Video Wrapper -->
+    <div class="video-wrapper" id="videoWrapper">
+        <div class="video-container" id="videoContainer">
+            <div class="video-placeholder" id="vidPlaceholder">
+                <i class="fas fa-video-slash fa-2x mb-2"></i>
+                <div id="camStatusText">Camera Offline</div>
+            </div>
+            <video id="localVideo" autoplay muted playsinline style="display:none;"></video>
+            <div id="studentStatus"
+                style="display:none; position:absolute; top:0; left:0; right:0; background:rgba(220,53,69,0.9); color:#fff; padding:4px; text-align:center; font-size:0.8rem; z-index:20;">
+                <span id="statusText">TEACHER OFFLINE</span>
+            </div>
+        </div>
+
+        <div class="video-controls" id="teacherControls">
+            <button class="btn btn-success" onclick="startBroadcast()" title="Start">
+                <i class="fas fa-play"></i>
+            </button>
+            <button class="btn btn-secondary" onclick="toggleMic()" title="Mic" disabled id="micBtn">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="btn btn-secondary" onclick="toggleCamera()" title="Cam" disabled id="camBtn">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="btn btn-danger" onclick="endBroadcast()" title="End" disabled id="endBtn">
+                <i class="fas fa-stop"></i>
+            </button>
+            <!-- Resource Button Added Back -->
+            <button id="resourceBtn" class="btn btn-warning" onclick="toggleResourcePanel()" title="Resources">
+                <i class="fas fa-book"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="js/i18n.js"></script>
+    <script>
+        // --- Globals ---
+        const canvas = document.getElementById('wb_canvas');
+        const ctx = canvas.getContext('2d');
+        let painting = false;
+        let role = 'student';
+        let myName = 'User';
+        let localStream = null;
+        let micEnabled = true;
+        let camEnabled = true;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 1. Auth Check
+            try {
+                const res = await fetch('api/auth_check.php');
+                const data = await res.json();
+                if (!data.logged_in) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                role = data.role;
+                myName = data.name;
+                document.getElementById('uName').innerText = `${myName} (${role.toUpperCase()})`;
+
+                if (role !== 'teacher') {
+                    document.getElementById('teacherControls').style.display = 'none';
+                    document.getElementById('clearBtn').style.display = 'none';
+                    document.getElementById('studentStatus').style.display = 'block';
+                }
+
+                // Init Draggables
+                enableDragging(document.getElementById('videoWrapper'));
+                const resPanel = document.getElementById('teacherResourcePanel');
+                if (resPanel) enableDragging(resPanel, document.getElementById('panelHeader'));
+
+                setInterval(syncState, 2000);
+
+                // Handle Embedded Mode
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('embedded') === 'true') {
+                    document.getElementById('classroomNavbar').style.display = 'none';
+                    document.body.style.backgroundColor = 'transparent';
+                    // Adjust container heights if necessary
+                    document.querySelectorAll('.wb-container, .chat-panel').forEach(el => {
+                        el.style.height = 'calc(100vh - 20px)';
+                    });
+                }
+            } catch (e) { console.error("Auth failed", e); }
+
+            // Canvas Events
+            canvas.addEventListener('mousedown', startPosition);
+            canvas.addEventListener('mouseup', finishedPosition);
+            canvas.addEventListener('mousemove', draw);
+        });
+
+        function handleExit() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('embedded') === 'true') {
+                if (window.parent && typeof window.parent.loadView === 'function') {
+                    window.parent.loadView('dashboard');
+                } else {
+                    window.history.back();
+                }
+            } else {
+                window.close();
+            }
+        }
+
+        // --- Whiteboard Logic ---
+        function startPosition(e) {
+            if (role !== 'teacher') return;
+            painting = true;
+            draw(e);
+        }
+        function finishedPosition() {
+            painting = false;
+            ctx.beginPath();
+            if (role === 'teacher') pushBoard();
+        }
+        function draw(e) {
+            if (!painting || role !== 'teacher') return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#000';
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+        function clearBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pushBoard('CLEAR');
+        }
+        async function pushBoard(data = null) {
+            const payload = data || canvas.toDataURL();
+            await fetch('api/teacher.php?action=update_classroom', {
+                method: 'POST',
+                body: JSON.stringify({ subject_id: 1, whiteboard: payload })
+            });
+        }
+
+        /**
+         * 1. SYNC STATE (THE HEART OF THE CLASSROOM)
+         * Purpose: Every 2 seconds, this function asking the server:
+         * "Has the teacher drawn anything new?" and "Is there a new chat message?"
+         * This makes sure everyone sees the same thing at the same time.
+         */
+        async function syncState() {
+            try {
+                const res = await fetch('api/student.php?action=get_classroom_state&subject_id=1');
+                const data = await res.json();
+
+                // Whiteboard Sync: If you are a student, get the image from the server and "paint" it on your canvas.
+                if (!painting && data.whiteboard) {
+                    if (data.whiteboard === 'CLEAR') ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    else if (data.whiteboard.startsWith('data:image') && role !== 'teacher') {
+                        let img = new Image();
+                        img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        img.src = data.whiteboard;
+                    }
+                }
+
+                // Chat Sync: Draw all the messages on the right side.
+                const box = document.getElementById('chatBox');
+                if (data.chat) {
+                    let html = '';
+                    data.chat.forEach(msg => {
+                        const isMine = msg.sender === myName;
+                        html += `<div style="clear:both">
+                                    <div class="msg-bubble ${isMine ? 'msg-mine' : 'msg-other'}">
+                                        <span class="sender-name">${isMine ? 'You' : msg.sender}</span>
+                                        ${msg.text}
+                                    </div>
+                                 </div>`;
+                    });
+                    if (box.innerHTML.length !== html.length) {
+                        box.innerHTML = html;
+                        box.scrollTop = box.scrollHeight;
+                    }
+                }
+            } catch (e) { }
+        }
+
+        async function sendChat() {
+            const inp = document.getElementById('chatInput');
+            const msg = inp.value.trim();
+            if (!msg) return;
+            await fetch('api/student.php?action=send_chat', {
+                method: 'POST',
+                body: JSON.stringify({ subject_id: 1, message: msg })
+            });
+            inp.value = '';
+            syncState();
+        }
+
+        // --- Video Logic ---
+        async function startBroadcast() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const video = document.getElementById('localVideo');
+                video.srcObject = localStream;
+                video.style.display = 'block';
+                document.getElementById('vidPlaceholder').style.display = 'none';
+
+                document.getElementById('micBtn').disabled = false;
+                document.getElementById('camBtn').disabled = false;
+                document.getElementById('endBtn').disabled = false;
+
+                // Notify backend
+                await fetch('api/teacher.php?action=start_live_session', {
+                    method: 'POST', body: JSON.stringify({ subject_id: 1, peer_id: 'dummy' })
+                });
+            } catch (e) { alert('Camera Error: ' + e.message); }
+        }
+        function toggleMic() {
+            micEnabled = !micEnabled;
+            localStream.getAudioTracks()[0].enabled = micEnabled;
+        }
+        function toggleCamera() {
+            camEnabled = !camEnabled;
+            localStream.getVideoTracks()[0].enabled = camEnabled;
+        }
+        function endBroadcast() {
+            if (localStream) localStream.getTracks().forEach(t => t.stop());
+            document.getElementById('localVideo').style.display = 'none';
+            document.getElementById('vidPlaceholder').style.display = 'block';
+        }
+
+        // --- Resource Panel Logic ---
+        function toggleResourcePanel() {
+            const panel = document.getElementById('teacherResourcePanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'flex';
+                fetchResources();
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+        async function uploadResource() {
+            const fileInput = document.getElementById('resourceFile');
+            const modInp = document.getElementById('resModule');
+            const titleInp = document.getElementById('resTitle');
+            const descInp = document.getElementById('resDesc');
+
+            if (!fileInput.files[0] || !modInp.value) { alert("File and Module Number required"); return; }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('subject_id', 1);
+            formData.append('module', modInp.value);
+            formData.append('title', titleInp.value || fileInput.files[0].name);
+            formData.append('description', descInp.value);
+
+            try {
+                const res = await fetch('api/teacher.php?action=upload_resource', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    alert("Uploaded!");
+                    fileInput.value = ''; modInp.value = ''; titleInp.value = ''; descInp.value = '';
+                    fetchResources();
+                } else alert("Failed: " + data.error);
+            } catch (e) { console.error(e); }
+        }
+        async function fetchResources() {
+            try {
+                const res = await fetch('api/teacher.php?action=get_teacher_resources&subject_id=1');
+                const data = await res.json();
+                const list = document.getElementById('resourceList');
+                list.innerHTML = '';
+
+                if (!data.grouped) return;
+
+                for (const [mod, resources] of Object.entries(data.grouped)) {
+                    const group = document.createElement('div');
+                    group.innerHTML = `<div class="bg-secondary text-white px-2 py-1 small fw-bold mb-1 rounded">Module ${mod}</div>`;
+                    list.appendChild(group);
+                    resources.forEach(f => {
+                        const row = document.createElement('div');
+                        row.className = 'd-flex justify-content-between p-2 border-bottom';
+                        row.innerHTML = `<span class="small text-truncate" style="max-width:200px">${f.title}</span>
+                                          <div>
+                                            <button class="btn btn-sm btn-outline-primary py-0" onclick="loadResource('${f.file_path}', '${f.file_type}')">Open</button>
+                                            <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteResource(${f.id})">&times;</button>
+                                          </div>`;
+                        list.appendChild(row);
+                    });
+                }
+            } catch (e) { }
+        }
+        function loadResource(path, type) {
+            const container = document.getElementById('resourceViewer');
+            const content = document.getElementById('viewerContent');
+            const list = document.getElementById('resourceList');
+            container.classList.remove('d-none');
+            // list.style.height = '150px'; 
+
+            const url = `uploads/resources/${path}`;
+            if (path.toLowerCase().endsWith('.pdf')) {
+                content.innerHTML = `<iframe src="${url}" style="width:100%; height:100%; border:none;"></iframe>`;
+            } else if (['png', 'jpg', 'jpeg'].some(ext => path.toLowerCase().endsWith(ext))) {
+                content.innerHTML = `<img src="${url}" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+            } else {
+                content.innerHTML = `<a href="${url}" target="_blank" class="btn btn-primary">Download</a>`;
+            }
+        }
+        function closeViewer() {
+            document.getElementById('resourceViewer').classList.add('d-none');
+            document.getElementById('viewerContent').innerHTML = '';
+        }
+        async function deleteResource(id) {
+            if (!confirm("Delete?")) return;
+            await fetch('api/teacher.php?action=delete_resource', { method: 'POST', body: JSON.stringify({ resource_id: id }) });
+            fetchResources();
+        }
+
+        // --- Robust Draggable Logic ---
+        function enableDragging(elmnt, handle) {
+            handle = handle || elmnt; // If no handle specified, drag by element itself
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+            handle.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                // Ignore button clicks
+                if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.card-body')) {
+                    // If existing logic requires specific handle, this check might be needed. 
+                    // For video wrapper (drag anywhere), we skip dragging if clicking buttons.
+                    if (elmnt.id === 'videoWrapper' && (e.target.closest('button') || e.target.closest('input'))) return;
+                    // For resource panel, we only drag by header, so this is fine.
+                }
+
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+                elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+                // Reset right/bottom constraints
+                elmnt.style.right = 'auto';
+                elmnt.style.bottom = 'auto';
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+    </script>
+</body>
+
+</html>
