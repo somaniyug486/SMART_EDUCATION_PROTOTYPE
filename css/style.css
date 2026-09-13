@@ -1,0 +1,9 @@
+/* css/style.css */
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; }
+.sidebar { height: 100vh; position: fixed; top: 0; left: 0; padding-top: 20px; background-color: #343a40; color: white; width: 250px; }
+.sidebar a { padding: 15px; text-decoration: none; font-size: 18px; color: #ddd; display: block; border-bottom: 1px solid #495057; }
+.sidebar a:hover { background-color: #007bff; color: white; }
+.content { margin-left: 260px; padding: 20px; }
+.card { margin-bottom: 20px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.btn-primary { background: #007bff; border: none; }
+.spinner-border { width: 3rem; height: 3rem; }

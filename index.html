@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Edu - Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+
+<body class="bg-light d-flex align-items-center justify-content-center vh-100">
+
+    <div class="card shadow-lg border-0" style="width: 100%; max-width: 400px;">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <h3 class="fw-bold text-primary">Smart Edu</h3>
+                <p class="text-muted">Low-bandwidth Learning Platform</p>
+            </div>
+
+            <div id="alertBox" class="alert alert-danger d-none text-break" role="alert"></div>
+
+            <form id="loginForm">
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" required placeholder="name@example.com">
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" required placeholder="********">
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </div>
+            </form>
+
+            <div class="mt-4 text-center">
+                <small class="text-muted">Demo Credentials:</small><br>
+                <small>Student: rahul@student.com / password123</small><br>
+                <small>Teacher: amit@teacher.com / password123</small>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const alertBox = document.getElementById('alertBox');
+
+            alertBox.classList.add('d-none');
+
+            try {
+                const response = await fetch('api/login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const text = await response.text();
+
+                try {
+                    const data = JSON.parse(text);
+                    if (response.ok && data.success) {
+                        // REDIRECT TO NEW FOLDERS
+                        if (data.role === 'student') window.location.href = 'student/dashboard.html';
+                        else if (data.role === 'teacher') window.location.href = 'teacher/dashboard.html';
+                    } else {
+                        alertBox.innerHTML = `<strong>Login Failed:</strong> ${data.message}`;
+                        alertBox.classList.remove('d-none');
+                    }
+                } catch (jsonError) {
+                    alertBox.innerHTML = `<strong>Server Error:</strong><br>${text.substring(0, 100)}...`;
+                    alertBox.classList.remove('d-none');
+                }
+            } catch (error) {
+                alertBox.textContent = 'Network error.';
+                alertBox.classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+
+</html>

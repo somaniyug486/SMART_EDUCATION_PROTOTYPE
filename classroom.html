@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Live Classroom - Smart Edu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        #wb_canvas {
+            border: 2px solid #333;
+            background: white;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .chat-container {
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-box {
+            flex-grow: 1;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <!-- Close Button -->
+    <div class="p-2 bg-dark text-white d-flex justify-content-between">
+        <span>Smart Edu Classroom</span>
+        <button onclick="window.close()" class="btn btn-sm btn-danger">Exit Class</button>
+    </div>
+
+    <div class="container-fluid py-3">
+        <div class="row">
+            <!-- Whiteboard -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between">
+                        <span>Whiteboard</span>
+                        <button class="btn btn-sm btn-light" onclick="clearBoard()">Clear</button>
+                    </div>
+                    <div class="card-body text-center bg-secondary">
+                        <canvas id="wb_canvas" width="800" height="500"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat -->
+            <div class="col-md-4">
+                <div class="card chat-container">
+                    <div class="card-header bg-info text-dark">Class Chat</div>
+                    <div id="chatBox" class="chat-box"></div>
+                    <div class="p-2">
+                        <div class="input-group">
+                            <input type="text" id="chatInput" class="form-control" placeholder="Type message...">
+                            <button class="btn btn-primary" onclick="sendChat()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple Classroom Logic (Shared)
+        // Usually you'd separate this, but for the prototype, inline or shared JS works.
+        // We will detect role via API.
+
+        const canvas = document.getElementById('wb_canvas');
+        const ctx = canvas.getContext('2d');
+        let painting = false;
+        let role = 'student';
+        let pollInterval = null;
+        let myName = 'User';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check Auth & Role
+            const res = await fetch('../api/auth_check.php');
+            const auth = await res.json();
+            if (!auth.logged_in) { alert("Please login first"); window.close(); return; }
+            role = auth.role;
+            myName = auth.name;
+
+            if (role === 'teacher') initTeacher();
+            else initStudent();
+
+            startPolling();
+        });
+
+        // --- Teacher Logic ---
+        function initTeacher() {
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('mousemove', draw);
+        }
+        function startDraw(e) { painting = true; draw(e); }
+        function endDraw() { painting = false; ctx.beginPath(); pushServer(); }
+        function draw(e) {
+            if (!painting) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+        }
+        function clearBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pushServer(true); // IsClear = true
+        }
+
+        async function pushServer(isClear = false) {
+            const dataURL = isClear ? 'CLEAR' : canvas.toDataURL();
+            await fetch('../api/teacher.php?action=update_classroom', {
+                method: 'POST',
+                body: JSON.stringify({ subject_id: 1, whiteboard: dataURL }) // Sending Image Data URL for simplicity now
+            });
+        }
+
+        // --- Student Logic (and shared Chat) ---
+        function initStudent() {
+            // Students just watch, no mouse events
+        }
+
+        function startPolling() {
+            setInterval(async () => {
+                const res = await fetch('../api/student.php?action=get_classroom_state&subject_id=1');
+                const data = await res.json();
+
+                // Sync Whiteboard
+                if (data.whiteboard) {
+                    if (data.whiteboard === 'CLEAR') {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    } else if (data.whiteboard.startsWith('data:image')) {
+                        let img = new Image();
+                        img.onload = () => ctx.drawImage(img, 0, 0);
+                        img.src = data.whiteboard;
+                    }
+                }
+
+                // Sync Chat
+                const box = document.getElementById('chatBox');
+                box.innerHTML = '';
+                data.chat.forEach(msg => {
+                    box.innerHTML += `<div><strong>${msg.sender}:</strong> ${msg.text}</div>`;
+                });
+            }, 1000);
+        }
+
+        async function sendChat() {
+            const inp = document.getElementById('chatInput');
+            if (!inp.value) return;
+            // Endpoint depends on role, but we can reuse student's for chat as it's just DB insert
+            await fetch('../api/student.php?action=send_chat', {
+                method: 'POST',
+                body: JSON.stringify({ subject_id: 1, message: inp.value })
+            });
+            inp.value = '';
+        }
+    </script>
+</body>
+
+</html>
